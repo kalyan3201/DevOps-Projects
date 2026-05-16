@@ -1,0 +1,77 @@
+pipeline {
+    agent any
+
+    environment {
+        IMAGE_NAME = "pavansaikalyan/html-web-app"
+        CONTAINER_NAME = "html-web-container"
+        APP_DIR = "DevOps-Project-02/html-web-app"
+        DOCKER_CREDS = credentials('docker-creds')
+    }
+
+    stages {
+
+        stage('Clean Workspace') {
+            steps {
+                cleanWs()
+            }
+        }
+
+        stage('Checkout Code') {
+            steps {
+                git branch: 'main',
+                url: 'https://github.com/kalyan3201/DevOps-Projects.git'
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                dir("${APP_DIR}") {
+                    sh 'docker build -t $IMAGE_NAME:$BUILD_NUMBER .'
+                }
+            }
+        }
+
+        stage('Docker Login') {
+            steps {
+                sh '''
+                echo $DOCKER_CREDS_PSW | docker login -u $DOCKER_CREDS_USR --password-stdin
+                '''
+            }
+        }
+
+        stage('Push Docker Image') {
+            steps {
+                sh '''
+                docker push $IMAGE_NAME:$BUILD_NUMBER
+                '''
+            }
+        }
+
+        stage('Remove Old Container') {
+            steps {
+                sh 'docker rm -f $CONTAINER_NAME || true'
+            }
+        }
+
+        stage('Run Docker Container') {
+            steps {
+                sh '''
+                docker run -d \
+                --name $CONTAINER_NAME \
+                -p 80:80 \
+                $IMAGE_NAME:$BUILD_NUMBER
+                '''
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'Application deployed successfully!'
+        }
+
+        failure {
+            echo 'Pipeline failed!'
+        }
+    }
+}
